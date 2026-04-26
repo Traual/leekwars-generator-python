@@ -40,7 +40,7 @@ def run_python():
         for entity in team:
             entity.ai_function = basic_ai
 
-    generator = Generator(data_dir=os.path.join(os.path.dirname(__file__), "data"))
+    generator = Generator(data_dir=os.path.join(os.path.dirname(__file__), "..", "data"))
     outcome = generator.runScenario(scenario, None, _Reg(), _Stats())
 
     out = {

@@ -88,7 +88,7 @@ def run_python(scenario_path: str) -> dict:
     for team in scenario.entities:
         for entity in team:
             entity.ai_function = basic_ai
-    generator = Generator(data_dir=os.path.join(HERE, "data"))
+    generator = Generator(data_dir=os.path.join(HERE, "..", "data"))
     outcome = generator.runScenario(scenario, None, _Reg(), _Stats())
     return {
         "winner": outcome.winner,
