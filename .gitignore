@@ -27,6 +27,14 @@ _fix_round.py
 tmp/
 out_python_*.json
 ai/
+compare/ai_cache/
+compare/_tmp_scenario.json
+compare/java_output.json
+compare/python_output.json
+compare/scenario_orig.json
+compare/generator.jar
+compare/data/
+compare/ai/AI_*
 
 # Logs
 *.log

@@ -8,20 +8,20 @@ class EffectParameters:
         self._targets = targets
         self._modifiers = modifiers
 
-    def get_id(self) -> int:
+    def getId(self) -> int:
         return self._id
 
-    def get_value1(self) -> float:
+    def getValue1(self) -> float:
         return self._value1
 
-    def get_value2(self) -> float:
+    def getValue2(self) -> float:
         return self._value2
 
-    def get_turns(self) -> int:
+    def getTurns(self) -> int:
         return self._turns
 
-    def get_targets(self) -> int:
+    def getTargets(self) -> int:
         return self._targets
 
-    def get_modifiers(self) -> int:
+    def getModifiers(self) -> int:
         return self._modifiers

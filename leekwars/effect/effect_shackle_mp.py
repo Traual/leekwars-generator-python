@@ -1,6 +1,7 @@
 import math
 
 from .effect import Effect
+from ..util.java_math import java_round
 
 
 class EffectShackleMP(Effect):

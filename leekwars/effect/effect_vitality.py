@@ -2,6 +2,7 @@ import math
 
 from .effect import Effect
 from ..action.action_vitality import ActionVitality
+from ..util.java_math import java_round
 
 
 class EffectVitality(Effect):

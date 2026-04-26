@@ -1,0 +1,11 @@
+// Deterministic AI used to compare the Java and Python generators.
+// No randomness, no debug logs, no chips: just equip the first weapon,
+// walk toward the nearest enemy, fire once.
+
+var weapons = getWeapons();
+if (count(weapons) > 0) {
+    setWeapon(weapons[0]);
+}
+var enemy = getNearestEnemy();
+moveToward(enemy);
+useWeapon(enemy);

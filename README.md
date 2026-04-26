@@ -13,6 +13,7 @@ neural-network self-play, …).
 | AI runtime | LeekScript bytecode | plain Python callables |
 | RNG | LCG, signed-64 long | matches **bit-for-bit** |
 | Determinism | yes | yes |
+| **Full-fight parity** | | **51/51 random scenarios match byte-for-byte** |
 
 ## Why?
 
@@ -114,6 +115,37 @@ Map/fight determinism (seed=42):
 
 Total failures: 0
 ```
+
+### Full-fight parity vs Java (the strongest test)
+
+[`compare/`](compare) ships matching AIs (`compare/ai/basic.leek` for Java,
+`compare/python_basic_ai.py` for Python) and a runner that builds a random
+scenario, feeds it to both engines, and diffs the action streams:
+
+```bash
+$ python compare/compare_many.py 1 2 3 4 5 ... 88888
+seed=         1  OK   actions=478 winner=1 duration=33
+seed=         2  OK   actions=619 winner=0 duration=43
+seed=         3  OK   actions=687 winner=1 duration=46
+...
+seed=     88888  OK   actions=637 winner=0 duration=46
+
+51/51 scenarios match Java byte-for-byte
+```
+
+Every action — START_FIGHT, LEEK_TURN, SAY, SET_WEAPON, MOVE_TO (path
+included), USE_WEAPON, LOST_LIFE, NEW_TURN, END_TURN, … — is identical to
+the Java reference for every entity at every turn. Same winner, same
+duration, same JSON.
+
+Two non-obvious bits had to match for this to work:
+
+1. **A\* tie-break is LIFO, not FIFO.** Java's pathfinding uses a `TreeSet`
+   with a comparator that returns `-1` on equal weights, which makes the
+   *most recently inserted* equal-weight cell come first. Our heap uses
+   a *decreasing* counter as secondary key to reproduce that.
+2. **`Math.round(0.5) == 1`, but `round(0.5) == 0` in Python.** Replaced
+   everywhere with `java_round` from `leekwars/util/java_math.py`.
 
 ## Quick start
 

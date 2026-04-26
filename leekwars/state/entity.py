@@ -1,6 +1,7 @@
 import math
 
 from .stats import Stats
+from ..util.java_math import java_round
 
 
 class Entity:

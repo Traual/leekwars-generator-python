@@ -4,6 +4,7 @@ from .effect import Effect
 from ..action.action_damage import ActionDamage
 from ..attack.damage_type import DamageType
 from ..attack.entity_state import EntityState
+from ..util.java_math import java_round
 
 
 class EffectLifeDamage(Effect):

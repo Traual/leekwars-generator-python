@@ -3,6 +3,7 @@ import math
 from .effect import Effect
 from ..action.action_heal import ActionHeal
 from ..attack.entity_state import EntityState
+from ..util.java_math import java_round
 
 
 class EffectHeal(Effect):

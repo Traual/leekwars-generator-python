@@ -673,16 +673,22 @@ class Map:
             c.closed = False
             c.cost = 32767  # Short.MAX_VALUE
 
-        # TreeSet ordered by weight - use a list for simplicity (sorted insertion)
+        # Java uses a TreeSet with a comparator that returns -1 for equal weights,
+        # which makes ties LIFO (the most recently inserted equal-weight cell wins
+        # the next pollFirst()). We replicate that with a min-heap whose secondary
+        # key is a *decreasing* counter.
         import heapq
         heap = []
         counter = [0]
 
+        def push(cell):
+            heapq.heappush(heap, (cell.weight, -counter[0], cell))
+            counter[0] += 1
+
         c1.cost = 0
         c1.weight = 0
         c1.visited = True
-        heapq.heappush(heap, (c1.weight, counter[0], c1))
-        counter[0] += 1
+        push(c1)
 
         while len(heap) > 0:
             _, _, u = heapq.heappop(heap)
@@ -714,8 +720,7 @@ class Map:
                     c.weight = c.cost + Map.getDistance(c, endCells[0])
                     c.parent = u
                     if not c.visited:
-                        heapq.heappush(heap, (c.weight, counter[0], c))
-                        counter[0] += 1
+                        push(c)
                         c.visited = True
         return None
 

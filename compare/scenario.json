@@ -1,0 +1,66 @@
+{
+    "farmers": [
+        {"id": 1, "name": "P1", "country": "fr"},
+        {"id": 2, "name": "P2", "country": "fr"}
+    ],
+    "teams": [
+        {"id": 1, "name": "TeamA"},
+        {"id": 2, "name": "TeamB"}
+    ],
+    "entities": [
+        [
+            {
+                "id": 1,
+                "ai": "test/ai/basic.leek",
+                "name": "A",
+                "type": 0,
+                "farmer": 1,
+                "team": 1,
+                "level": 100,
+                "life": 1000,
+                "strength": 200,
+                "agility": 0,
+                "wisdom": 0,
+                "resistance": 0,
+                "science": 0,
+                "magic": 0,
+                "frequency": 100,
+                "cores": 10,
+                "ram": 10,
+                "tp": 12,
+                "mp": 6,
+                "cell": 200,
+                "weapons": [37],
+                "chips": []
+            }
+        ],
+        [
+            {
+                "id": 2,
+                "ai": "test/ai/basic.leek",
+                "name": "B",
+                "type": 0,
+                "farmer": 2,
+                "team": 2,
+                "level": 100,
+                "life": 1000,
+                "strength": 200,
+                "agility": 0,
+                "wisdom": 0,
+                "resistance": 0,
+                "science": 0,
+                "magic": 0,
+                "frequency": 100,
+                "cores": 10,
+                "ram": 10,
+                "tp": 12,
+                "mp": 6,
+                "cell": 400,
+                "weapons": [37],
+                "chips": []
+            }
+        ]
+    ],
+    "random_seed": 42,
+    "max_turns": 64
+}
