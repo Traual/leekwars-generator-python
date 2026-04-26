@@ -1,0 +1,32 @@
+# Java reference clone (kept locally as documentation, not part of the repo)
+java_reference/
+
+# Build artifacts
+*.class
+*.jar
+*.pyc
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Tooling we use locally but don't want to ship
+_fix_round.py
+tmp/
+out_python_*.json
+ai/
+
+# Logs
+*.log

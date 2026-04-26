@@ -1,0 +1,27 @@
+class EffectParameters:
+
+    def __init__(self, id: int, value1: float, value2: float, turns: int, targets: int, modifiers: int):
+        self._id = id
+        self._value1 = value1
+        self._value2 = value2
+        self._turns = turns
+        self._targets = targets
+        self._modifiers = modifiers
+
+    def get_id(self) -> int:
+        return self._id
+
+    def get_value1(self) -> float:
+        return self._value1
+
+    def get_value2(self) -> float:
+        return self._value2
+
+    def get_turns(self) -> int:
+        return self._turns
+
+    def get_targets(self) -> int:
+        return self._targets
+
+    def get_modifiers(self) -> int:
+        return self._modifiers

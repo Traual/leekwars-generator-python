@@ -1,0 +1,16 @@
+from enum import IntEnum
+
+
+class EntityState(IntEnum):
+    NONE = 0
+    RESURRECTED = 1
+    UNHEALABLE = 2
+    INVINCIBLE = 3
+    PACIFIST = 4
+    HEAVY = 5
+    DENSE = 6
+    MAGNETIZED = 7
+    CHAINED = 8
+    ROOTED = 9
+    PETRIFIED = 10
+    STATIC = 11
