@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Leek Wars Python — Sandbox</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div id="root">
+        <header>
+            <h1>Leek Wars <span class="accent">Python</span></h1>
+            <div class="header-actions">
+                <span id="seed-label" class="seed">seed —</span>
+                <button id="new-game">New game</button>
+            </div>
+        </header>
+
+        <main>
+            <section id="left">
+                <div id="entity-cards"></div>
+                <div id="action-panel">
+                    <h3>Your turn</h3>
+                    <div id="weapon-list"></div>
+                    <div id="action-status">Click a green cell to move, a red cell to shoot.</div>
+                    <button id="end-turn" disabled>End turn</button>
+                </div>
+            </section>
+
+            <section id="board-wrap">
+                <canvas id="board" width="900" height="700"></canvas>
+                <div id="hover-info"></div>
+                <div id="banner"></div>
+            </section>
+
+            <section id="log">
+                <h3>Combat log</h3>
+                <div id="log-list"></div>
+            </section>
+        </main>
+    </div>
+    <script src="{{ url_for('static', filename='game.js') }}"></script>
+</body>
+</html>

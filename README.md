@@ -147,6 +147,23 @@ Two non-obvious bits had to match for this to work:
 2. **`Math.round(0.5) == 1`, but `round(0.5) == 0` in Python.** Replaced
    everywhere with `java_round` from `leekwars/util/java_math.py`.
 
+## Interactive sandbox GUI
+
+A small Flask app under [`gui/`](gui) lets you fight against the basic
+Python AI in your browser. Random stats, random weapons, random map every
+launch.
+
+```bash
+pip install flask
+python -m gui.app
+# open http://127.0.0.1:5000
+```
+
+Click a green cell to move, a red cell to shoot, a weapon button to equip
+it, then `End turn` to let the bot play. The combat log shows the same
+JSON actions the engine emits — handy for sanity-checking that what you
+see on the board matches what the generator produces.
+
 ## Quick start
 
 ```python
