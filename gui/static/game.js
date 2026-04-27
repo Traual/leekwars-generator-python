@@ -14,6 +14,7 @@ const els = {
     seed: document.getElementById('seed-label'),
     cards: document.getElementById('entity-cards'),
     weapons: document.getElementById('weapon-list'),
+    chips: document.getElementById('chip-list'),
     status: document.getElementById('action-status'),
     endTurn: document.getElementById('end-turn'),
     log: document.getElementById('log-list'),
@@ -161,16 +162,43 @@ function renderWeapons() {
     const player = state.entities.find(e => e.is_player);
     if (!player) { els.weapons.innerHTML = ''; return; }
     const meta = new Map(state.weapons.map(w => [w.id, w]));
+    const active = state.active_item || {};
     els.weapons.innerHTML = player.weapons.map(wid => {
         const w = meta.get(wid);
         const equipped = player.current_weapon === wid;
-        return `<button class="weapon-btn ${equipped ? 'equipped' : ''}" data-weapon-id="${wid}">
+        const isActive = active.kind === 'weapon' && (active.id === wid || (active.id == null && equipped));
+        return `<button class="item-btn ${equipped ? 'equipped' : ''} ${isActive ? 'active' : ''}" data-weapon-id="${wid}">
             ${w?.name ?? wid} ${equipped ? '✓' : ''}
             <small>range ${w?.min_range}-${w?.max_range}, cost ${w?.cost} TP</small>
         </button>`;
     }).join('');
     els.weapons.querySelectorAll('button').forEach(b => {
         b.addEventListener('click', () => setWeapon(parseInt(b.dataset.weaponId)));
+    });
+}
+
+function renderChips() {
+    if (!state) { els.chips.innerHTML = ''; return; }
+    const player = state.entities.find(e => e.is_player);
+    if (!player || !player.chips || player.chips.length === 0) {
+        els.chips.innerHTML = '<div style="font-size:11px;color:#8b949e">No chips equipped.</div>';
+        return;
+    }
+    const meta = new Map(state.chips.map(c => [c.id, c]));
+    const active = state.active_item || {};
+    els.chips.innerHTML = player.chips.map(cid => {
+        const c = meta.get(cid);
+        const cd = player.cooldowns?.[cid] || 0;
+        const tooExpensive = player.tp < (c?.cost || 0);
+        const disabled = cd > 0 || tooExpensive;
+        const isActive = active.kind === 'chip' && active.id === cid;
+        return `<button class="item-btn ${isActive ? 'active' : ''}" data-chip-id="${cid}" ${disabled ? 'disabled' : ''}>
+            ${c?.name ?? cid}
+            <small>range ${c?.min_range}-${c?.max_range}, cost ${c?.cost} TP${cd > 0 ? `, CD ${cd}` : ''}${c?.cooldown ? `, cd ${c.cooldown}` : ''}</small>
+        </button>`;
+    }).join('');
+    els.chips.querySelectorAll('button').forEach(b => {
+        b.addEventListener('click', () => selectChip(parseInt(b.dataset.chipId)));
     });
 }
 
@@ -282,6 +310,18 @@ async function useWeapon(cellId) {
     setState(data.state);
 }
 
+async function useChip(chipId, cellId) {
+    if (!state || !state.is_player_turn) return;
+    const data = await api('/api/use_chip', { chip_id: chipId, cell_id: cellId });
+    setState(data.state);
+}
+
+async function selectChip(chipId) {
+    if (!state || !state.is_player_turn) return;
+    const data = await api('/api/select_item', { kind: 'chip', item_id: chipId });
+    setState(data);
+}
+
 async function endTurn() {
     if (!state || !state.is_player_turn) return;
     els.status.textContent = 'Bot is thinking…';
@@ -306,6 +346,7 @@ function setState(newState) {
     recomputeOrigin();
     renderCards();
     renderWeapons();
+    renderChips();
     updateActionPanel();
     renderLog();
     showBanner();
@@ -333,7 +374,12 @@ canvas.addEventListener('click', (ev) => {
     const cell = screenToCell(ev.clientX - rect.left, ev.clientY - rect.top);
     if (!cell) return;
     if (state.attackable_cells.includes(cell.id)) {
-        useWeapon(cell.id);
+        const active = state.active_item || {};
+        if (active.kind === 'chip' && active.id != null) {
+            useChip(active.id, cell.id);
+        } else {
+            useWeapon(cell.id);
+        }
     } else if (state.reachable_cells.includes(cell.id)) {
         moveTo(cell.id);
     }

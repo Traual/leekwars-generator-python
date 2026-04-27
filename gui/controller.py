@@ -28,11 +28,17 @@ from leekwars.action.action_entity_turn import ActionEntityTurn
 from leekwars.action.action_end_turn import ActionEndTurn
 from leekwars.action.action_ai_error import ActionAIError
 from leekwars.weapons import weapons as Weapons
-from leekwars.classes import fight_class, entity_class, weapon_class
+from leekwars.chips import chips as Chips
+from leekwars.maps.pathfinding import Pathfinding
+from leekwars.classes import fight_class, entity_class, weapon_class, chip_class
 
 
 # Some good 1v1-friendly weapons (single or low-AOE).
 WEAPON_POOL = [37, 38, 39, 41, 45, 42, 43, 47, 60, 151, 153, 175, 180, 184, 277, 278]
+# A small chip pool: damage + heal + a couple of buffs.
+CHIP_POOL_DAMAGE = [1, 2, 5, 6, 7, 18, 19, 30, 33, 36]   # Shock, Ice, Flame, Flash, Rock, Spark, Pebble, Stalactite, Lightning, Meteorite
+CHIP_POOL_HEAL = [3, 4, 10]                              # Bandage, Cure, Drip
+CHIP_POOL_BUFF = [8, 9, 20]                              # Protein, Stretching, Shield
 
 
 class _Stats(DefaultStatisticsManager):
@@ -48,16 +54,66 @@ class _Reg(RegisterManager):
 
 
 def _basic_ai(ai):
-    weapons = entity_class.getWeapons(ai)
+    """A slightly smarter bot.
+
+    1. Pick the weapon whose range bracket contains the distance to the nearest
+       enemy (fall back to longest-range one).
+    2. Move into range if needed.
+    3. Spam the weapon while we have enough TP.
+    4. Throw a damage chip at the end if we still have TP and one off cooldown.
+    """
+    me = ai.getEntity()
+    enemy_id = fight_class.getNearestEnemy(ai)
+    if enemy_id < 0:
+        return
+    enemy = ai.getFight().getEntity(enemy_id)
+    if enemy is None or enemy.getCell() is None or me.getCell() is None:
+        return
+
+    distance = Pathfinding.getCaseDistance(me.getCell(), enemy.getCell())
+
+    # Choose the best weapon for the current distance.
+    weapons = me.getWeapons()
     if weapons:
-        entity_class.setWeapon(ai, weapons[0])
-    enemy = fight_class.getNearestEnemy(ai)
-    fight_class.moveToward(ai, enemy)
-    if enemy >= 0:
+        def weapon_score(w):
+            mn, mx = w.getAttack().getMinRange(), w.getAttack().getMaxRange()
+            in_range = mn <= distance <= mx
+            # Prefer in-range weapons; otherwise prefer the one closest to the target distance.
+            return (1 if in_range else 0, -abs(distance - (mn + mx) / 2), mx)
+        best = max(weapons, key=weapon_score)
+        if me.getWeapon() is None or me.getWeapon().getId() != best.getId():
+            entity_class.setWeapon(ai, best.getId())
+
+    # Try to get into range if we're not already.
+    fight_class.moveToward(ai, enemy_id)
+
+    # Fire as many times as TP allows.
+    while True:
+        weapon = me.getWeapon()
+        if weapon is None or me.getTP() < weapon.getCost():
+            break
+        if not ai.getState().getMap().canUseAttack(me.getCell(), enemy.getCell(), weapon.getAttack()):
+            break
         try:
-            weapon_class.useWeapon(ai, enemy)
+            r = weapon_class.useWeapon(ai, enemy_id)
+        except Exception:
+            break
+        if r <= 0 or enemy.isDead() or me.isDead():
+            break
+
+    # Try one damage chip if we still have TP.
+    for chip in me.getChips():
+        if me.getTP() < chip.getCost():
+            continue
+        if ai.getState().hasCooldown(me, chip):
+            continue
+        if not ai.getState().getMap().canUseAttack(me.getCell(), enemy.getCell(), chip.getAttack()):
+            continue
+        try:
+            chip_class.useChipOnCell(ai, chip.getId(), enemy.getCell().getId())
         except Exception:
             pass
+        break
 
 
 def _player_ai(ai):
@@ -103,10 +159,15 @@ def _make_random_scenario(seed: int, player_team: int) -> Scenario:
         e.ram = 10
         e.tp = rng.randint(12, 18)
         e.mp = rng.randint(5, 8)
-        # 1-2 random weapons from the pool
+        # 1-2 random weapons from the pool, plus a small chip loadout
         weapon_count = rng.randint(1, 2)
         e.weapons = rng.sample(WEAPON_POOL, weapon_count)
-        e.chips = []
+        chips = (
+            rng.sample(CHIP_POOL_DAMAGE, rng.randint(1, 2))
+            + rng.sample(CHIP_POOL_HEAL, 1)
+            + rng.sample(CHIP_POOL_BUFF, 1)
+        )
+        e.chips = chips
         e.ai_function = ai_function
         return e
 
@@ -174,6 +235,8 @@ class FightController:
         self.finished = False
         self.winner = None
         self._action_index = 0  # index into actions for incremental delivery
+        self._active_item_kind = "weapon"   # "weapon" or "chip" — which item the
+        self._active_item_id = None         # GUI is currently aiming with
 
         # Auto-advance until it's player's turn (or fight ends)
         self._advance_to_player_turn()
@@ -272,7 +335,11 @@ class FightController:
         weapon = Weapons.getWeapon(weapon_id)
         if weapon is None or not self.player_entity.hasWeapon(weapon_id):
             return False
-        return self.fight.getState().setWeapon(self.player_entity, weapon)
+        ok = self.fight.getState().setWeapon(self.player_entity, weapon)
+        if ok:
+            self._active_item_kind = "weapon"
+            self._active_item_id = weapon_id
+        return ok
 
     def player_move_to(self, cell_id: int) -> int:
         if not self._is_player_turn() or self.finished:
@@ -300,9 +367,34 @@ class FightController:
             return 0
         return state.useWeapon(self.player_entity, target)
 
+    def player_use_chip(self, chip_id: int, target_cell_id: int) -> int:
+        if not self._is_player_turn() or self.finished:
+            return 0
+        self._ensure_player_turn_started()
+        state = self.fight.getState()
+        chip = self.player_entity.getChip(chip_id)
+        if chip is None:
+            return 0
+        target = state.getMap().getCell(target_cell_id)
+        if target is None:
+            return 0
+        return state.useChip(self.player_entity, target, chip)
+
+    def select_item(self, kind: str, item_id):
+        """Mark which weapon or chip the GUI is aiming with (drives the red zone)."""
+        if kind not in ("weapon", "chip"):
+            return
+        self._active_item_kind = kind
+        self._active_item_id = int(item_id) if item_id is not None else None
+
     # ---- State serialization --------------------------------------------
 
     def _entity_dict(self, entity):
+        state = self.fight.getState()
+        cooldowns = {}
+        for chip in entity.getChips():
+            cd = state.getCooldown(entity, chip)
+            cooldowns[chip.getId()] = cd
         return {
             "id": entity.getFId(),
             "name": entity.getName(),
@@ -323,6 +415,8 @@ class FightController:
             "cell": entity.getCell().getId() if entity.getCell() is not None else None,
             "weapons": [w.getId() for w in entity.getWeapons()],
             "current_weapon": entity.getWeapon().getId() if entity.getWeapon() is not None else None,
+            "chips": [c.getId() for c in entity.getChips()],
+            "cooldowns": cooldowns,
             "alive": entity.isAlive(),
             "is_player": entity is self.player_entity,
         }
@@ -354,9 +448,26 @@ class FightController:
                         "launch_type": w.getAttack().getLaunchType(),
                         "area": w.getAttack().getArea(),
                     }
-        # Reachable cells from the player's current cell (within MP)
+        chips_meta = {}
+        for entity in state.getEntities().values():
+            for c in entity.getChips():
+                if c.getId() not in chips_meta:
+                    chips_meta[c.getId()] = {
+                        "id": c.getId(),
+                        "name": c.getName(),
+                        "min_range": c.getAttack().getMinRange(),
+                        "max_range": c.getAttack().getMaxRange(),
+                        "cost": c.getCost(),
+                        "cooldown": c.getCooldown(),
+                        "los": c.getAttack().needLos(),
+                    }
+        # Reachable cells from the player's current cell (within MP) and
+        # the active "shoot" zone — the active item is whatever weapon or chip
+        # the GUI has selected (default = current weapon).
         reachable = []
         attackable = []
+        active_id = self._active_item_id
+        active_kind = self._active_item_kind  # "weapon" or "chip"
         if self._is_player_turn() and not self.finished and self.player_entity.getCell() is not None:
             mp = self.player_entity.getMP()
             origin = self.player_entity.getCell()
@@ -367,10 +478,21 @@ class FightController:
                     path = m.getPathBeetween(origin, c, None)
                     if path is not None and 0 < len(path) <= mp:
                         reachable.append(c.getId())
-            weapon = self.player_entity.getWeapon()
-            if weapon is not None and self.player_entity.getTP() >= weapon.getCost():
+            attack = None
+            cost = 0
+            if active_kind == "chip" and active_id is not None:
+                chip = self.player_entity.getChip(active_id)
+                if chip is not None and not state.hasCooldown(self.player_entity, chip):
+                    attack = chip.getAttack()
+                    cost = chip.getCost()
+            else:
+                weapon = self.player_entity.getWeapon()
+                if weapon is not None:
+                    attack = weapon.getAttack()
+                    cost = weapon.getCost()
+            if attack is not None and self.player_entity.getTP() >= cost:
                 for c in m.getCells():
-                    if m.canUseAttack(self.player_entity.getCell(), c, weapon.getAttack()):
+                    if m.canUseAttack(self.player_entity.getCell(), c, attack):
                         attackable.append(c.getId())
         return {
             "seed": self.seed,
@@ -389,8 +511,10 @@ class FightController:
             "cells": cells,
             "entities": [self._entity_dict(e) for e in state.getEntities().values()],
             "weapons": list(weapons_meta.values()),
+            "chips": list(chips_meta.values()),
             "reachable_cells": reachable,
             "attackable_cells": attackable,
+            "active_item": {"kind": active_kind, "id": active_id},
             "log": self._actions_since_last(),
         }
 

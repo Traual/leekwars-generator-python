@@ -79,6 +79,24 @@ def use_weapon():
     return jsonify({"result": result, "state": _state["controller"].get_state_dict()})
 
 
+@app.route("/api/use_chip", methods=["POST"])
+def use_chip():
+    if _state["controller"] is None:
+        return jsonify({"error": "no game"}), 400
+    data = request.get_json() or {}
+    result = _state["controller"].player_use_chip(int(data["chip_id"]), int(data["cell_id"]))
+    return jsonify({"result": result, "state": _state["controller"].get_state_dict()})
+
+
+@app.route("/api/select_item", methods=["POST"])
+def select_item():
+    if _state["controller"] is None:
+        return jsonify({"error": "no game"}), 400
+    data = request.get_json() or {}
+    _state["controller"].select_item(data.get("kind", "weapon"), data.get("item_id"))
+    return jsonify(_state["controller"].get_state_dict())
+
+
 @app.route("/api/end_turn", methods=["POST"])
 def end_turn():
     if _state["controller"] is None:

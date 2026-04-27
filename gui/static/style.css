@@ -130,22 +130,32 @@ button:disabled { background: #30363d; color: #8b949e; cursor: not-allowed; }
     font-size: 14px;
     color: #c9d1d9;
 }
-#weapon-list {
+#weapon-list, #chip-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
     margin-bottom: 12px;
 }
-.weapon-btn {
+#action-panel h4 {
+    margin: 8px 0 4px 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #8b949e;
+    font-weight: 500;
+}
+.item-btn {
     background: #30363d;
     text-align: left;
     padding: 8px 10px;
     font-size: 12px;
     border-radius: 6px;
 }
-.weapon-btn.equipped { background: #1f6feb; }
-.weapon-btn small { display: block; color: #8b949e; font-weight: normal; margin-top: 2px; }
-.weapon-btn.equipped small { color: rgba(255,255,255,0.7); }
+.item-btn.equipped { background: #1f6feb; }
+.item-btn.active { outline: 2px solid #f85149; outline-offset: -2px; }
+.item-btn small { display: block; color: #8b949e; font-weight: normal; margin-top: 2px; }
+.item-btn.equipped small { color: rgba(255,255,255,0.7); }
+.item-btn:disabled small { color: #555; }
 #action-status {
     font-size: 12px;
     color: #8b949e;
