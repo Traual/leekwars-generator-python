@@ -8,17 +8,36 @@ simulation** because that single number drives every design decision below.
 
 ## 1. How fast is the engine today?
 
-Measured with `bench.py` on the current Python port (Python 3.14, CPython,
-single-threaded, no JIT) and `bench_parallel.py` with `multiprocessing.Pool`.
+Measured with `bench.py` / `bench_parallel.py` / `bench_search.py` /
+`bench_search_parallel.py` (CPython 3.14, no JIT). All numbers are with
+the optimised engine (Java parity 51/51 byte-for-byte preserved).
 
-| Metric | Value |
+### Full fight throughput (basic AI vs basic AI)
+
+| Metric | Baseline | Optimised | Gain |
+|---|---|---|---|
+| Single core | 93 fights/s | **158 fights/s** | +71 % |
+| 12 cores | 427 fights/s | **622 fights/s** | +46 % |
+| Per fight | 10.7 ms | 6.3 ms | -41 % |
+| Average fight length | 43 turns, 541 actions | same | — |
+
+### BFS-dim-1 hot path (clone + apply one action + read result)
+
+This is the primitive the search loop calls 50–200 times per decision.
+
+| Metric | Baseline | Optimised |
+|---|---|---|
+| State clone alone | 17.0 µs | **12.7 µs** |
+| Clone + setWeapon + useWeapon + read | 28.2 µs | **17.5 µs**  (57 k evals/s/core) |
+| Clone + moveEntity + read | 25.6 µs | 19.9 µs  (50 k evals/s/core) |
+| 12-core scaling | — | **271 k evals/s** parallel |
+
+### Other primitives
+
+| | |
 |---|---|
-| Single-core throughput | **93 fights/sec** (10.7 ms/fight) |
-| 12-core throughput (`mp.Pool`) | **427 fights/sec** (2.3 ms/fight) |
-| Average fight length | ~43 turns, 541 actions |
-| Per-turn cost | ~250 µs |
-| RNG draw | 664 ns |
-| A* pathfinding | 210 µs/call |
+| RNG draw | 633 ns |
+| A* pathfinding | ~110 µs/call (was 210 µs before A* rewrite) |
 
 `cProfile` of 100 fights (basic-AI vs basic-AI):
 
@@ -33,12 +52,20 @@ initFight              0.59s   19%   (one-shot: map gen + composantes)
 ```
 
 **Take-aways**
-- The simulator is *not* the bottleneck of a single fight (10 ms is fine).
-- It **is** the bottleneck the moment you want **search**: 100 rollouts/turn
-  × 30 ms/rollout = 3 s/decision. That's too slow for any deep MCTS.
-- A* dominates inside a turn (28% of CPU). Anything that touches movement
-  hits it.
-- Map generation takes 5 ms once. If we sim from a *given* state it's free.
+- A single full fight runs in 6 ms — fast enough that **self-play training
+  data generation is no longer a bottleneck**: 158 fights/s × ~80
+  decisions/fight = ~12 600 (state, action) samples/sec/core, ~150 k/s
+  on 12 cores. A million-sample dataset in ≈ 7 seconds of wall time.
+- A BFS-dim-1 decision (try every candidate action, score each) costs
+  100 × 17.5 µs ≈ **1.75 ms/decision** on a single core, or ~150 µs on
+  12 cores in parallel. If your NN scorer takes 100 µs (small MLP on
+  GPU, batched), a full BFS-dim-1 turn is well under 2 ms — fits in any
+  real-time budget.
+- For deeper search (multi-turn MCTS with 1000+ rollouts) the
+  simulator is still the bottleneck. That's where PyPy / Cython / Rust
+  start to make sense (see §3).
+- Map generation takes ~3 ms once per fight. For BFS that's amortised
+  across all candidate evaluations — basically free.
 
 ---
 
@@ -149,11 +176,15 @@ work. Options, ordered by effort vs. payoff:
 
 | Option | Effort | Speedup | Catch |
 |---|---|---|---|
-| `multiprocessing.Pool` (already done) | 1 hour | **4-5×** (12 cores) | Only helps for *batch* eval, not a single MCTS tree |
-| **PyPy** instead of CPython | 1 day | 5-10× per core | Need to ensure no CPython-only deps; Flask/Numpy may complain |
-| **Cython** the hot loops | 2-3 days | 5-15× on hot paths | A*, Effect.createEffect, useWeapon are good targets |
+| ~~Cache A* paths within a turn~~ | done | +38 % | invalidated on entity move |
+| ~~Pre-computed cell adjacency~~ | done | small | one tuple lookup vs 4 method calls |
+| ~~A\* rewrite (no per-call reset, local dicts)~~ | done | included | LIFO tie-break preserves Java behaviour |
+| ~~`__slots__` + Stats as 18-int list + Map topology cache~~ | done | included | — |
+| ~~Lift inline imports out of hot paths~~ | done | small | importlib.parent traversal cost |
+| `multiprocessing.Pool` (already wired) | 1 hour | **~4×** | only for batch; intra-MCTS-tree won't scale this way |
+| **PyPy** instead of CPython | 1 day | 5-10× per core | need to ensure no CPython-only deps; Flask/Numpy may complain |
+| **Cython** the hot loops | 2-3 days | 5-15× on hot paths | A*, useWeapon, applyOnCell are good targets |
 | **Numba** `@njit` on A* + cell math | 2-3 days | 10-50× on those funcs | Numba doesn't love OOP — would need a flat-array re-export of Map |
-| Cache A* paths within a turn | 2 hours | 20-30% | The Java code has a cache stub — easy port |
 | Re-implement engine in **Rust + PyO3** | 1-2 weeks | **50-200×** | Big rewrite, but parity tests still apply (51/51) |
 | **Vectorized batch sim** (NumPy) | 1-2 weeks | per-batch 100×+ | Hard for stateful sim; only works if rollouts share structure |
 
