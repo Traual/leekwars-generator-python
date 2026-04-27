@@ -326,6 +326,15 @@ class Map:
         new_map.state = state
         new_map.cellByEntity = {}
         new_map.entityByCell = {}
+        # Static topology — safe to share references with the source map
+        # (cells are the same object pool). Without this, A* on the clone
+        # blows up with AttributeError on _neighbors.
+        new_map._neighbors = map_._neighbors
+        # _path_cache is per-instance: paths depend on current entity
+        # positions, and ``positionChanged`` clears it on each move. Share
+        # would cause the clone's clears to nuke the original's cache too,
+        # so just give the clone its own empty dict.
+        new_map._path_cache = {}
         for cell, entity in map_.entityByCell.items():
             new_map.entityByCell[cell] = state.getEntity(entity.getFId())
         for entity, cell in map_.cellByEntity.items():
