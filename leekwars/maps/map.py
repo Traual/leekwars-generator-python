@@ -174,35 +174,102 @@ class Map:
             map_.setType(int(custom_map["type"]))
         return map_
 
+    # Cache the static topology (cell coords, has-N/S/W/E flags, bounds)
+    # for each (width, height) the engine ever sees. Cell objects are still
+    # per-Map (because walkable/obstacle is per-fight), but the per-cell
+    # math + bounds discovery only happens once per dimension.
+    _topology_cache = {}
+
+    @staticmethod
+    def _build_topology(width, height):
+        nb_cells = (width * 2 - 1) * height - (width - 1)
+        # Per-cell static fields
+        topo = [None] * nb_cells
+        min_x = max_x = min_y = max_y = None
+        w2m1 = width * 2 - 1
+        for i in range(nb_cells):
+            x_raw = i % w2m1
+            y_raw = i // w2m1
+            north = west = east = south = True
+            if y_raw == 0 and x_raw < width:
+                north = False
+                west = False
+            elif y_raw + 1 == height and x_raw >= width:
+                east = False
+                south = False
+            if x_raw == 0:
+                south = False
+                west = False
+            elif x_raw + 1 == width:
+                north = False
+                east = False
+            cy = y_raw - x_raw % width
+            cx = (i - (width - 1) * cy) // width
+            topo[i] = (cx, cy, north, west, east, south)
+            if min_x is None or cx < min_x: min_x = cx
+            if max_x is None or cx > max_x: max_x = cx
+            if min_y is None or cy < min_y: min_y = cy
+            if max_y is None or cy > max_y: max_y = cy
+        return {
+            "nb_cells": nb_cells,
+            "topo": topo,
+            "min_x": min_x, "max_x": max_x,
+            "min_y": min_y, "max_y": max_y,
+            "sx": max_x - min_x + 1,
+            "sy": max_y - min_y + 1,
+        }
+
     def __init__(self, width, height, id_=0):
         self.width = width
         self.height = height
         self.id = id_
 
-        self.nb_cells = (width * 2 - 1) * height - (width - 1)
+        cache_key = (width, height)
+        topo = Map._topology_cache.get(cache_key)
+        if topo is None:
+            topo = Map._build_topology(width, height)
+            Map._topology_cache[cache_key] = topo
 
-        self.cells = []
-        self.min_x = -1
-        self.max_x = -1
-        self.min_y = -1
-        self.max_y = -1
-        for i in range(self.nb_cells):
-            c = Cell(self, i)
-            self.cells.append(c)
-            if self.min_x == -1 or c.getX() < self.min_x:
-                self.min_x = c.getX()
-            if self.max_x == -1 or c.getX() > self.max_x:
-                self.max_x = c.getX()
-            if self.min_y == -1 or c.getY() < self.min_y:
-                self.min_y = c.getY()
-            if self.max_y == -1 or c.getY() > self.max_y:
-                self.max_y = c.getY()
-        sx = self.max_x - self.min_x + 1
-        sy = self.max_y - self.min_y + 1
-        self.coord = [[None for _ in range(sy)] for _ in range(sx)]
-        for i in range(self.nb_cells):
-            c = self.cells[i]
-            self.coord[c.getX() - self.min_x][c.getY() - self.min_y] = c
+        self.nb_cells = topo["nb_cells"]
+        self.min_x = topo["min_x"]
+        self.max_x = topo["max_x"]
+        self.min_y = topo["min_y"]
+        self.max_y = topo["max_y"]
+
+        # Build fresh Cell objects, but skip per-cell math by copying the
+        # cached topology straight into the slots.
+        cells = [Cell.__new__(Cell) for _ in range(self.nb_cells)]
+        for i, c in enumerate(cells):
+            cx, cy, north, west, east, south = topo["topo"][i]
+            c.id = i
+            c.walkable = True
+            c.obstacle = 0
+            c.size = 0
+            c.north = north
+            c.west = west
+            c.east = east
+            c.south = south
+            c.x = cx
+            c.y = cy
+            c.composante = 0
+            c.visited = False
+            c.closed = False
+            c.cost = 0
+            c.weight = 0.0
+            c.parent = None
+        self.cells = cells
+
+        # coord array — cells differ per-Map so this is per-instance, but
+        # the (x, y) -> id mapping is static, so we reuse it from the topo.
+        coord_index = topo.get("coord_index")
+        if coord_index is None:
+            coord_index = [[None for _ in range(topo["sy"])] for _ in range(topo["sx"])]
+            mn_x, mn_y = topo["min_x"], topo["min_y"]
+            for i, c in enumerate(cells):
+                coord_index[c.x - mn_x][c.y - mn_y] = i
+            topo["coord_index"] = coord_index
+        # Materialise coord with our local cells via the cached index.
+        self.coord = [[cells[idx] if idx is not None else None for idx in col] for col in coord_index]
 
         self.type = 0
         self.mObstacles = None
@@ -211,22 +278,33 @@ class Map:
         self.state = None
         self.cellByEntity = {}
         self.entityByCell = {}
-        self._path_cache = {}  # invalidated by positionChanged()
+        self._path_cache = {}
 
-        # Pre-compute the 4-neighbour table once. The grid is static, so
-        # this is much faster than calling getCellByDir 4 times per query.
-        # We inline getCellByDir to skip method-call + branch overhead.
-        cells = self.cells
-        nb = self.nb_cells
-        w = self.width
-        self._neighbors = [None] * nb
-        for c in cells:
-            cid = c.id
-            south = cells[cid + w - 1] if c.south and (cid + w - 1) < nb else None
-            west = cells[cid - w] if c.west and (cid - w) >= 0 else None
-            north = cells[cid - w + 1] if c.north and (cid - w + 1) >= 0 else None
-            east = cells[cid + w] if c.east and (cid + w) < nb else None
-            self._neighbors[cid] = (south, west, north, east)
+        # Neighbour table — same per-cell topology, so we compute the
+        # *id-based* table once per dimension and materialise with our cells.
+        neighbour_ids = topo.get("neighbour_ids")
+        if neighbour_ids is None:
+            nb = self.nb_cells
+            w = self.width
+            ids = [None] * nb
+            for c in cells:
+                cid = c.id
+                south_id = (cid + w - 1) if c.south and (cid + w - 1) < nb else None
+                west_id = (cid - w) if c.west and (cid - w) >= 0 else None
+                north_id = (cid - w + 1) if c.north and (cid - w + 1) >= 0 else None
+                east_id = (cid + w) if c.east and (cid + w) < nb else None
+                ids[cid] = (south_id, west_id, north_id, east_id)
+            topo["neighbour_ids"] = ids
+            neighbour_ids = ids
+        self._neighbors = [
+            (
+                cells[s] if s is not None else None,
+                cells[w_] if w_ is not None else None,
+                cells[n] if n is not None else None,
+                cells[e] if e is not None else None,
+            )
+            for (s, w_, n, e) in neighbour_ids
+        ]
 
     @staticmethod
     def copy(map_, state):
@@ -709,60 +787,66 @@ class Map:
         if c1 in endCells:
             return None
 
-        for c in self.getCells():
-            c.visited = False
-            c.closed = False
-            c.cost = 32767  # Short.MAX_VALUE
-
-        # Java uses a TreeSet with a comparator that returns -1 for equal weights,
-        # which makes ties LIFO (the most recently inserted equal-weight cell wins
-        # the next pollFirst()). We replicate that with a min-heap whose secondary
-        # key is a *decreasing* counter.
+        # Local A* state — keyed by cell.id — avoids the 613-cell reset loop
+        # the Java code does on every call. Java uses LIFO tie-breaking via
+        # a TreeSet with always-negative comparator; we reproduce it with a
+        # decreasing secondary heap key.
         import heapq
-        heap = []
-        counter = [0]
+        endCellsSet = set(endCells)
+        cells_to_ignore_set = set(cells_to_ignore) if cells_to_ignore else None
+        end0 = endCells[0]
+        end0x = end0.x
+        end0y = end0.y
+        neighbors = self._neighbors
+        entityByCell = self.entityByCell
 
-        def push(cell):
-            heapq.heappush(heap, (cell.weight, -counter[0], cell))
-            counter[0] += 1
+        cost = {c1.id: 0}
+        parent = {}
+        heap = [(0.0, 0, c1)]
+        counter = 1
+        closed = set()
 
-        c1.cost = 0
-        c1.weight = 0
-        c1.visited = True
-        push(c1)
-
-        while len(heap) > 0:
+        while heap:
             _, _, u = heapq.heappop(heap)
-            if u.closed:
+            uid = u.id
+            if uid in closed:
                 continue
-            u.closed = True
+            closed.add(uid)
 
-            if u in endCells:
+            if u in endCellsSet:
+                # Walk parents back to start.
                 result = []
-                s = u.cost
+                s = cost[uid]
+                cur = u
                 while s >= 1:
-                    result.append(u)
-                    u = u.parent
+                    result.append(cur)
+                    cur = parent[cur.id]
                     s -= 1
                 result.reverse()
-                last = result[len(result) - 1]
-                if last.getPlayer(self) is not None and (cells_to_ignore is None or last not in cells_to_ignore):
+                last = result[-1]
+                if entityByCell.get(last) is not None and (cells_to_ignore_set is None or last not in cells_to_ignore_set):
                     result.pop()
                 return result
 
-            for c in self.getCellsAround(u):
-                if c is None or c.closed or not c.isWalkable():
+            u_cost = cost[uid]
+            new_cost = u_cost + 1
+            for c in neighbors[uid]:
+                if c is None or c.id in closed or not c.walkable:
                     continue
-                if c.getPlayer(self) is not None and (cells_to_ignore is None or c not in cells_to_ignore) and c not in endCells:
+                if entityByCell.get(c) is not None and (cells_to_ignore_set is None or c not in cells_to_ignore_set) and c not in endCellsSet:
                     continue
 
-                if not c.visited or u.cost + 1 < c.cost:
-                    c.cost = u.cost + 1
-                    c.weight = c.cost + Map.getDistance(c, endCells[0])
-                    c.parent = u
-                    if not c.visited:
-                        push(c)
-                        c.visited = True
+                old = cost.get(c.id)
+                if old is None or new_cost < old:
+                    cost[c.id] = new_cost
+                    parent[c.id] = u
+                    if old is None:
+                        # f = g + h, h = euclidean distance to first end cell
+                        dx = c.x - end0x
+                        dy = c.y - end0y
+                        weight = new_cost + (dx * dx + dy * dy) ** 0.5
+                        heapq.heappush(heap, (weight, -counter, c))
+                        counter += 1
         return None
 
     def getPossibleCastCellsForTarget(self, attack, target, cells_to_ignore):

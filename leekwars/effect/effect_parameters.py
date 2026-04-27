@@ -1,5 +1,7 @@
 class EffectParameters:
 
+    __slots__ = ("_id", "_value1", "_value2", "_turns", "_targets", "_modifiers")
+
     def __init__(self, id: int, value1: float, value2: float, turns: int, targets: int, modifiers: int):
         self._id = id
         self._value1 = value1

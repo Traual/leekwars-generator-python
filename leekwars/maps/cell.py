@@ -1,5 +1,14 @@
 class Cell:
 
+    # __slots__ removes the per-instance __dict__: faster attribute access,
+    # ~50% lower memory. With 613 cells per map and many state clones, it adds up.
+    __slots__ = (
+        "id", "walkable", "obstacle", "size",
+        "north", "west", "east", "south",
+        "x", "y", "composante",
+        "visited", "closed", "cost", "weight", "parent",
+    )
+
     def __init__(self, map_or_cell=None, id_=None):
         # Two constructor variants:
         # 1) (Map, int id) - new cell

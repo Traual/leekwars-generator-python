@@ -4,8 +4,13 @@ import math
 from .order import Order
 from .start_order import StartOrder
 from .team import Team
+from .entity import Entity
 from ..util.random_generator import RandomGenerator
 from ..action.actions import Actions
+from ..attack.attack import Attack
+from ..action.action_use_weapon import ActionUseWeapon
+from ..action.action_use_chip import ActionUseChip
+from ..action.action_invocation import ActionInvocation
 
 
 from ..util.java_math import java_long as _java_long_overflow, java_div as _java_div, java_mod as _java_mod
@@ -235,7 +240,6 @@ class State:
         return enemies
 
     def getTeamLeeks(self, team: int):
-        from .entity import Entity
         leeks = []
         if team < len(self.teams):
             for e in self.teams[team].getEntities():
@@ -293,7 +297,6 @@ class State:
         from ..action.action_start_fight import ActionStartFight
         from ..chips import chips as Chips
         from ..effect.effect import Effect
-        from .entity import Entity
 
         # Create level/skin list
         list_ = {}
@@ -373,7 +376,6 @@ class State:
         from ..action.action_entity_die import ActionEntityDie
         from ..action.action_chest_opened import ActionChestOpened
         from ..effect.effect import Effect
-        from .entity import Entity
 
         killCell = entity.getCell()
 
@@ -461,7 +463,6 @@ class State:
             Effect.createEffect(self, Effect.TYPE_RAW_BUFF_POWER, -1, 1, power, 0, False, entity, entity, None, 0, True, 0, 1, 0, Effect.MODIFIER_IRREDUCTIBLE)
 
     def setWeapon(self, entity_or_id, weapon) -> bool:
-        from .entity import Entity
         from ..action.action_set_weapon import ActionSetWeapon
         if not isinstance(entity_or_id, Entity):
             entity = self.getEntity(entity_or_id)
@@ -477,9 +478,6 @@ class State:
         return True
 
     def useWeapon(self, launcher_or_id, target_or_id) -> int:
-        from .entity import Entity
-        from ..attack.attack import Attack
-        from ..action.action_use_weapon import ActionUseWeapon
         if not isinstance(launcher_or_id, Entity):
             launcher = self.getEntity(launcher_or_id)
             target = self.getMap().getCell(target_or_id)
@@ -523,9 +521,6 @@ class State:
         return result
 
     def useChip(self, caster_or_id, target_or_id, template) -> int:
-        from .entity import Entity
-        from ..attack.attack import Attack
-        from ..action.action_use_chip import ActionUseChip
         from ..effect.effect import Effect
         if not isinstance(caster_or_id, Entity):
             caster = self.getEntity(caster_or_id)
@@ -645,9 +640,6 @@ class State:
 
     def summonEntity(self, caster, target, template, name=None) -> int:
         from ..effect.effect import Effect
-        from ..attack.attack import Attack
-        from ..action.action_use_chip import ActionUseChip
-        from ..action.action_invocation import ActionInvocation
 
         params = template.getAttack().getEffectParametersByType(Effect.TYPE_SUMMON)
         if self.order.current() is not caster or params is None:
@@ -685,9 +677,7 @@ class State:
         return result
 
     def resurrectEntity(self, caster, target, template, target_entity, fullLife) -> int:
-        from ..attack.attack import Attack
         from ..effect.effect import Effect
-        from ..action.action_use_chip import ActionUseChip
 
         if self.order.current() is not caster:
             return Attack.USE_INVALID_TARGET
@@ -733,7 +723,6 @@ class State:
 
     def createSummon(self, owner, type_, target, level, critical, name=None):
         from ..entity.bulb import Bulb
-        from ..action.action_invocation import ActionInvocation
 
         fid = self.getNextEntityId()
         invoc = Bulb.create(owner, -fid, type_, level, critical, name)
@@ -975,7 +964,6 @@ class State:
         return "State [\n\t" + "\n\t".join(lines) + "\n]"
 
     def moveToward(self, entity_or_id, leek_id: int, pm_to_use: int) -> int:
-        from .entity import Entity
         if not isinstance(entity_or_id, Entity):
             entity = self.getEntity(entity_or_id)
         else:
@@ -994,7 +982,6 @@ class State:
         return used_pm
 
     def moveTowardCell(self, entity_or_id, cell_id: int, pm_to_use: int) -> int:
-        from .entity import Entity
         if not isinstance(entity_or_id, Entity):
             entity = self.getEntity(entity_or_id)
         else:
