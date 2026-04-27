@@ -1,4 +1,5 @@
 from ..effect.effect_parameters import EffectParameters
+from ..effect.effect import Effect
 
 
 class Attack:
@@ -30,7 +31,6 @@ class Attack:
 
     def __init__(self, minRange, maxRange, launchType, area, los, effects, attackType, itemID, maxUses):
         from ..area.area import Area
-        from ..effect.effect import Effect
 
         self.minRange = minRange
         self.maxRange = maxRange
@@ -76,7 +76,6 @@ class Attack:
         return self.area.getArea(map_, cast_cell, target, None)
 
     def getWeaponTargets(self, state, caster, target):
-        from ..effect.effect import Effect
 
         returnEntities = []
         targetCells = self.area.getArea(state.getMap(), caster.getCell(), target, caster)
@@ -100,7 +99,6 @@ class Attack:
         return returnEntities
 
     def applyOnCell(self, state, caster, target, critical):
-        from ..effect.effect import Effect
 
         returnEntities = []
         targetCells = self.area.getArea(state.getMap(), caster.getCell(), target, caster)
@@ -181,7 +179,6 @@ class Attack:
         return returnEntities
 
     def filterTarget(self, targets, caster, target) -> bool:
-        from ..effect.effect import Effect
 
         # Enemies
         if (targets & Effect.TARGET_ENEMIES) == 0 and caster.getTeam() != target.getTeam():
@@ -246,7 +243,6 @@ class Attack:
         return self.attackType
 
     def needsEmptyCell(self) -> bool:
-        from ..effect.effect import Effect
         for ep in self.effects:
             if ep.getId() == Effect.TYPE_TELEPORT or ep.getId() == Effect.TYPE_SUMMON or ep.getId() == Effect.TYPE_RESURRECT:
                 return True

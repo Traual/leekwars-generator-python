@@ -1,10 +1,10 @@
 from .effect import Effect
+from ..state.entity import Entity
 
 
 class EffectStealAbsoluteShield(Effect):
 
     def apply(self, state):
-        from ..state.entity import Entity
         self.value = self.previousEffectTotalValue
         if self.value > 0:
             self.stats.setStat(Entity.STAT_ABSOLUTE_SHIELD, self.value)

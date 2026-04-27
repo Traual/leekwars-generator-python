@@ -211,6 +211,22 @@ class Map:
         self.state = None
         self.cellByEntity = {}
         self.entityByCell = {}
+        self._path_cache = {}  # invalidated by positionChanged()
+
+        # Pre-compute the 4-neighbour table once. The grid is static, so
+        # this is much faster than calling getCellByDir 4 times per query.
+        # We inline getCellByDir to skip method-call + branch overhead.
+        cells = self.cells
+        nb = self.nb_cells
+        w = self.width
+        self._neighbors = [None] * nb
+        for c in cells:
+            cid = c.id
+            south = cells[cid + w - 1] if c.south and (cid + w - 1) < nb else None
+            west = cells[cid - w] if c.west and (cid - w) >= 0 else None
+            north = cells[cid - w + 1] if c.north and (cid - w + 1) >= 0 else None
+            east = cells[cid + w] if c.east and (cid + w) < nb else None
+            self._neighbors[cid] = (south, west, north, east)
 
     @staticmethod
     def copy(map_, state):
@@ -242,6 +258,7 @@ class Map:
         self.entityByCell[cell] = entity
         self.cellByEntity[entity] = cell
         entity.setCell(cell)
+        self.positionChanged()
 
     def moveEntity(self, entity, cell) -> None:
         oldCell = self.cellByEntity.pop(entity, None)
@@ -250,12 +267,14 @@ class Map:
         self.entityByCell[cell] = entity
         self.cellByEntity[entity] = cell
         entity.setCell(cell)
+        self.positionChanged()
 
     def removeEntity(self, entity) -> None:
         cell = self.cellByEntity.pop(entity, None)
         if cell is not None:
             self.entityByCell.pop(cell, None)
         entity.setCell(None)
+        self.positionChanged()
 
     def invertEntities(self, entity1, entity2) -> None:
         cell1 = self.cellByEntity.get(entity1)
@@ -439,13 +458,35 @@ class Map:
         for cell in self.cells:
             cell.composante = connexe[cell.getX() - self.min_x][cell.getY() - self.min_y]
 
-    def positionChanged(self) -> None:
-        pass
-
     def getPathBeetween(self, start, end, cells_to_ignore):
         if start is None or end is None:
             return None
+        # Try the per-turn cache first (only for the common no-ignore case
+        # — anything more is too rare to bother caching).
+        if cells_to_ignore is None:
+            key = (start.id, end.id)
+            cache = getattr(self, "_path_cache", None)
+            if cache is not None and key in cache:
+                cached = cache[key]
+                # Return a fresh list so callers can mutate it freely.
+                return list(cached) if cached is not None else None
+            r = self.getAStarPath(start, [end], None)
+            if cache is not None:
+                cache[key] = r
+            return r
         return self.getAStarPath(start, [end], cells_to_ignore)
+
+    def positionChanged(self) -> None:
+        # Java has this hook for invalidating path caches. We use it the same way.
+        if hasattr(self, "_path_cache"):
+            self._path_cache.clear()
+
+    # Public hook used by the State at start-of-turn to enable path caching.
+    def beginTurnCache(self) -> None:
+        self._path_cache = {}
+
+    def endTurnCache(self) -> None:
+        self._path_cache = None
 
     def getCellsInCircle(self, cell, radius):
         cells = []
@@ -550,8 +591,8 @@ class Map:
         return True
 
     def getCellsAround(self, c):
-        return [self.getCellByDir(c, Map.SOUTH), self.getCellByDir(c, Map.WEST),
-                self.getCellByDir(c, Map.NORTH), self.getCellByDir(c, Map.EAST)]
+        # Use the pre-computed table (same SOUTH/WEST/NORTH/EAST order Java uses).
+        return self._neighbors[c.id]
 
     def getPathTowardLine(self, start, linecell1, linecell2):
         line_cell = []

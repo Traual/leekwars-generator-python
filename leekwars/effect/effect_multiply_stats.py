@@ -2,6 +2,7 @@ import math
 
 from .effect import Effect
 from ..util.java_math import java_round
+from ..state.entity import Entity
 
 
 class EffectMultiplyStats(Effect):
@@ -9,7 +10,6 @@ class EffectMultiplyStats(Effect):
     Used for Colossus mode to boost the colossus's stats."""
 
     def apply(self, state):
-        from ..state.entity import Entity
 
         factor = int(self.value1)
         if factor <= 1:

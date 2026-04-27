@@ -1,6 +1,7 @@
 import copy
 import math
 from ..util.java_math import java_round
+from ..state.entity import Entity
 
 
 class Effect:
@@ -265,7 +266,6 @@ class Effect:
 
     @staticmethod
     def getEffectStat(type_: int) -> int:
-        from ..state.entity import Entity
         if type_ == Effect.TYPE_DAMAGE:
             return Entity.STAT_STRENGTH
         elif type_ in (Effect.TYPE_POISON, Effect.TYPE_SHACKLE_MAGIC, Effect.TYPE_SHACKLE_STRENGTH, Effect.TYPE_SHACKLE_MP, Effect.TYPE_SHACKLE_TP):
