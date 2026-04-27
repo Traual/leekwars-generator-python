@@ -33,6 +33,21 @@ class Entity:
     STAT_CORES = 16
     STAT_RAM = 17
 
+    __slots__ = (
+        "cell", "name", "mId", "fight_id", "mFarmer", "mLevel",
+        "mSkin", "mHat", "mMetal", "mFace",
+        "mFarmerName", "mFarmerCountry", "mTeamName", "mCompositionName",
+        "mAIName", "mTeamId", "mAIId",
+        "mTotalLife", "mInitialLife", "mStatic", "resurrected",
+        "totalOperations", "saysTurn", "showsTurn", "mBirthTurn",
+        "effects", "launchedEffects", "passiveEffects", "mCooldown",
+        "states", "team", "state", "mChips", "mWeapons", "weapon",
+        "itemUses", "usedTP", "usedMP", "life",
+        "mRegister", "mHasMoved", "ai", "logs", "fight", "aiFile",
+        "initialCell", "orientation",
+        "mBaseStats", "mBuffStats",
+    )
+
     def __init__(self, *args):
         # Several constructor variants:
         # () -> calls (0, "")
@@ -40,7 +55,13 @@ class Entity:
         # (id, name, farmer, level, life, ...) -> full
         # (Entity) -> copy
 
-        # Init common state
+        # Fast path: copy. Skip the default init since _init_copy overwrites
+        # everything anyway. Saves ~40 attribute writes per clone.
+        if len(args) == 1 and isinstance(args[0], Entity):
+            self._init_copy(args[0])
+            return
+
+        # Default init (most fields zero-ish)
         self.cell = None
         self.name = ""
         self.mId = 0
@@ -89,18 +110,15 @@ class Entity:
         self.aiFile = None
         self.initialCell = None
         self.orientation = -1
+        self.mBaseStats = Stats()
+        self.mBuffStats = Stats()
 
         if len(args) == 0:
             self._init_simple(0, "")
-        elif len(args) == 1 and isinstance(args[0], Entity):
-            self._init_copy(args[0])
         elif len(args) == 2:
             self._init_simple(args[0], args[1])
         else:
             self._init_full(*args)
-
-        self.mBaseStats = self.mBaseStats if hasattr(self, 'mBaseStats') else Stats()
-        self.mBuffStats = self.mBuffStats if hasattr(self, 'mBuffStats') else Stats()
 
     def _init_simple(self, id_, name):
         self.mId = id_ if id_ is not None else 0
@@ -171,6 +189,37 @@ class Entity:
         self.endTurn()
 
     def _init_copy(self, entity):
+        # __slots__ requires every attribute to be set before it's read,
+        # so we prime defaults for the visual / identifier fields the
+        # original Java copy ctor leaves uninitialised.
+        self.mSkin = entity.mSkin
+        self.mHat = entity.mHat
+        self.mMetal = entity.mMetal
+        self.mFace = entity.mFace
+        self.mFarmerName = entity.mFarmerName
+        self.mFarmerCountry = entity.mFarmerCountry
+        self.mTeamName = entity.mTeamName
+        self.mCompositionName = entity.mCompositionName
+        self.mAIName = entity.mAIName
+        self.mTeamId = entity.mTeamId
+        self.mAIId = entity.mAIId
+        self.mBirthTurn = entity.mBirthTurn
+        self.totalOperations = 0
+        self.effects = []
+        self.launchedEffects = []
+        self.itemUses = {}
+        self.states = set()
+        self.state = None
+        self.mRegister = None
+        self.mHasMoved = False
+        self.ai = None
+        self.logs = None
+        self.fight = None
+        self.aiFile = None
+        self.initialCell = entity.initialCell
+        self.orientation = entity.orientation
+
+        # Java copy semantics
         self.mId = entity.getId()
         self.fight_id = entity.fight_id
         self.name = entity.getName()
