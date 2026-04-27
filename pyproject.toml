@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leekwars-generator"
+version = "0.1.0"
+description = "Python port of the Leek Wars combat generator (byte-for-byte parity with the Java reference)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Aurelien Michel", email = "aurelien.michel.74@gmail.com" }]
+keywords = ["leekwars", "game", "ai", "simulator"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Games/Entertainment",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.optional-dependencies]
+gui = ["flask>=3"]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/Traual/leekwars-generator-python"
+Source = "https://github.com/Traual/leekwars-generator-python"
+
+[tool.setuptools.packages.find]
+include = ["leekwars*"]
+
+[tool.setuptools.package-data]
+leekwars = ["_data/*.json"]

@@ -34,8 +34,12 @@ class Generator:
 
     _errorManager = None
 
-    def __init__(self, data_dir: str = "data"):
+    def __init__(self, data_dir: str = None):
         self.use_leekscript_cache = True
+        # Default: use the JSON files bundled inside the package, so the
+        # engine works after `pip install` regardless of cwd.
+        if data_dir is None:
+            data_dir = os.path.join(os.path.dirname(__file__), "_data")
         self.data_dir = data_dir
         os.makedirs("ai/", exist_ok=True)
         self._loadWeapons()
