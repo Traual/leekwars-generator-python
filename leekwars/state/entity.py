@@ -226,14 +226,10 @@ class Entity:
         self.team = entity.getTeam()
         self.mLevel = entity.mLevel
         self.mFarmer = entity.getFarmer()
-        # Bypass Stats.__init__ — go straight to __new__ + slot assignment.
-        # Profile showed Stats() at ~1.6 percent of farmer turn time.
-        bs = Stats.__new__(Stats)
-        bs._a = entity.mBuffStats._a.copy()
-        self.mBuffStats = bs
-        bs2 = Stats.__new__(Stats)
-        bs2._a = entity.mBaseStats._a.copy()
-        self.mBaseStats = bs2
+        # Stats(other) is a cdef-class fast path when the compiled
+        # extension is built; pure-Python list copy otherwise.
+        self.mBuffStats = Stats(entity.mBuffStats)
+        self.mBaseStats = Stats(entity.mBaseStats)
         self.mInitialLife = entity.mInitialLife
         self.mTotalLife = entity.mTotalLife
         self.mStatic = entity.mStatic

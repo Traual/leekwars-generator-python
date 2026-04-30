@@ -15,6 +15,7 @@ from Cython.Build import cythonize
 extensions = cythonize(
     [
         "leekwars/_fast/_los.pyx",
+        "leekwars/_fast/_stats.pyx",
     ],
     compiler_directives={
         "language_level": "3",
