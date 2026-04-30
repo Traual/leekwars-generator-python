@@ -132,11 +132,17 @@ class State:
         self.actions = Actions()
         self.randomGenerator = state.randomGenerator
 
+        # Skip Leek.__init__ + Entity.__init__ argument dispatching by
+        # going through __new__ + _init_copy directly. State cloning is
+        # only invoked from AI search loops (the engine never clones
+        # state during a normal fight), so Java parity is unaffected.
         self.mEntities = {}
+        new_entities = self.mEntities
         for key, entity in state.mEntities.items():
-            newEntity = Leek(entity)
+            newEntity = Leek.__new__(Leek)
+            newEntity._init_copy(entity)
             newEntity.setState(self, entity.getFId())
-            self.mEntities[key] = newEntity
+            new_entities[key] = newEntity
 
         # Effets
         for entity in self.mEntities.values():
