@@ -7,6 +7,15 @@ from .pathfinding import Pathfinding
 from .mask_area_cell import MaskAreaCell
 
 
+# Optional Cython acceleration for verifyLoS. Built once via
+# ``build_cython.bat`` at the repo root; the engine silently falls
+# back to pure Python if the compiled extension is missing.
+try:
+    from .._fast._los import verify_los_kernel as _los_kernel
+except ImportError:
+    _los_kernel = None
+
+
 class Map:
 
     NORTH = 0  # NE
@@ -639,6 +648,24 @@ class Map:
         needLos = True if attack is None else attack.needLos()
         if not needLos:
             return True
+
+        # Fast path: hand off the line-walking loop to the Cython kernel
+        # if the compiled extension is available. Falls through to the
+        # pure-Python implementation below otherwise.
+        if _los_kernel is not None:
+            ignored_ids = set()
+            for c in ignoredCells:
+                ignored_ids.add(c.id)
+            coord = self.coord
+            return _los_kernel(
+                start.x, start.y, end.x, end.y,
+                ignored_ids,
+                coord,
+                self.min_x, self.min_y,
+                len(coord), len(coord[0]) if coord else 0,
+                self.entityByCell,
+                start.id, end.id,
+            )
 
         a = abs(start.getY() - end.getY())
         b = abs(start.getX() - end.getX())

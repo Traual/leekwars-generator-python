@@ -36,5 +36,13 @@ compare/generator.jar
 compare/data/
 compare/ai/AI_*
 
+# Cython build artifacts -- only .pyx sources are committed;
+# users compile locally with build_cython.bat
+*.c
+*.pyd
+*.so
+build/
+leekwars/_fast/*.c
+
 # Logs
 *.log
