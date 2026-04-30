@@ -283,7 +283,17 @@ class Effect:
         return -1
 
     def clone(self):
-        return copy.copy(self)
+        # ``copy.copy`` is ~5x slower because it goes through
+        # ``__reduce_ex__`` / dict introspection. State cloning calls
+        # us once per (entity, active effect), so we hand-roll the copy.
+        new = self.__class__.__new__(self.__class__)
+        d = new.__dict__
+        d.update(self.__dict__)
+        # ``stats`` is the only mutable attribute that needs its own
+        # copy (everything else is either immutable or shared by ref).
+        from ..state.stats import Stats
+        d["stats"] = Stats(self.stats)
+        return new
 
     def setTarget(self, entity) -> None:
         self.target = entity
