@@ -1006,7 +1006,13 @@ class Map:
         size = 1
         close = []
         close.append(cell)
-        for i in range(1, size + 1):
+        # Java: `for (int i = 1; i <= size; i++)` re-evaluates `i <= size` on
+        # every iteration, so when `size` grows mid-loop the loop continues.
+        # Python's `range(1, size + 1)` is built once and would clip to the
+        # initial size (=1), missing rings 2..5. Use a while-loop to match
+        # Java byte-for-byte.
+        i = 1
+        while i <= size:
             stop = True
             for j in range(i):
                 stop = self._addValidCell(retour, close, self.getCell(cell.getX() + j, cell.getY() + (i - j)), cell) and stop
@@ -1015,6 +1021,7 @@ class Map:
                 stop = self._addValidCell(retour, close, self.getCell(cell.getX() - i + j, cell.getY() + j), cell) and stop
             if not stop and size < 5:
                 size += 1
+            i += 1
         return retour
 
     def _addValidCell(self, retour, close, c, center) -> bool:
